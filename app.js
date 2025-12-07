@@ -1,69 +1,75 @@
-import express from "express";
-import fetch from "node-fetch"; // צריך להתקין: npm install node-fetch
+// Import Express
+const express = require("express");
+const fetch = require("node-fetch");
 
 const app = express();
 app.use(express.json());
 
-// ----------------- CONFIG -----------------
-const VERIFY_TOKEN = process.env.VERIFY_TOKEN || "mysecrettoken";
-const ACCESS_TOKEN = process.env.ACCESS_TOKEN || "<EAAcExzDCsnABQIH549AdcVWnDFRGzqZC7EEsIEKUe4TLM1wjLVHT4IwXRc8788IyBFbyblw8MegwtrCzYJZAAmXlLv66YsUjeUZAO6X6QZAZCcbocCPiHxBf7imedZBa2JZALw91F2n6lMr9miDMD5okYhPb6kCF9tZBN9bjMwH41O8ZCm3jTZAyVp1Rruds9CzplRQJIAtVZATXCCwZCUWzUWW0PJtWbTl72ZAqZAEJ6bkibCq9CnZCyNne8HEAH0Y6RmliKlSnGCluogM17GVsFNSJeGf>";
-const PHONE_ID = process.env.PHONE_ID || "<963082496878613>";
+// ENV VARIABLES
+const VERIFY_TOKEN = process.env.VERIFY_TOKEN;
+const ACCESS_TOKEN = process.env.ACCESS_TOKEN;
+const PHONE_NUMBER_ID = process.env.PHONE_NUMBER_ID;
 
-// ---------- GET /webhook  (Verification) ----------
-app.get("/webhook", (req, res) => {
+// 1) VERIFY WEBHOOK (GET)
+app.get("/", (req, res) => {
   const mode = req.query["hub.mode"];
   const token = req.query["hub.verify_token"];
   const challenge = req.query["hub.challenge"];
 
-  console.log("Meta GET verification received:", req.query);
-
   if (mode === "subscribe" && token === VERIFY_TOKEN) {
-    console.log("Webhook verified successfully!");
+    console.log("WEBHOOK VERIFIED");
     return res.status(200).send(challenge);
   }
 
-  console.log("Webhook verification failed!");
   return res.sendStatus(403);
 });
 
-// ---------- POST /webhook  (Messages from WhatsApp) ----------
-app.post("/webhook", async (req, res) => {
-  console.log("Incoming webhook POST:", JSON.stringify(req.body, null, 2));
+// 2) RECEIVE MESSAGES (POST)
+app.post("/", async (req, res) => {
+  console.log("📩 Webhook received:");
+  console.log(JSON.stringify(req.body, null, 2));
 
-  const messages = req.body.entry?.[0]?.changes?.[0]?.value?.messages || [];
+  try {
+    const entry = req.body.entry?.[0];
+    const changes = entry?.changes?.[0];
+    const messages = changes?.value?.messages;
 
-  for (let message of messages) {
-    const phoneNumber = message.from;
+    if (messages && messages.length > 0) {
+      const msg = messages[0];
+      const from = msg.from;            // מספר המשתמש
+      const text = msg.text?.body;      // הטקסט שהמשתמש שלח
 
-    const body = {
-      messaging_product: "whatsapp",
-      to: phoneNumber,
-      type: "text",
-      text: { body: "Hello from Webhook!" } // כאן ההודעה האוטומטית
-    };
+      console.log("📨 User said:", text);
 
-    try {
-      await fetch(`https://graph.facebook.com/v22.0/${PHONE_ID}/messages`, {
-        method: "POST",
-        headers: {
-          "Authorization": `Bearer ${ACCESS_TOKEN}`,
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify(body)
-      });
-      console.log("Message sent to", phoneNumber);
-    } catch (error) {
-      console.error("Error sending message:", error);
+      // SEND A REPLY BACK VIA CLOUD API
+      await fetch(
+        `https://graph.facebook.com/v20.0/${PHONE_NUMBER_ID}/messages`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${ACCESS_TOKEN}`,
+          },
+          body: JSON.stringify({
+            messaging_product: "whatsapp",
+            to: from,
+            type: "text",
+            text: { body: `You said: ${text}` },
+          }),
+        }
+      );
+
+      console.log("✔ Reply sent successfully!");
     }
+  } catch (e) {
+    console.error("❌ Error handling webhook:", e);
   }
 
   res.sendStatus(200);
 });
 
-// Root endpoint just to show it's alive
-app.get("/", (req, res) => {
-  res.send("Webhook server is running!");
+// START SERVER
+const port = process.env.PORT || 3000;
+app.listen(port, () => {
+  console.log("Server running on port", port);
 });
-
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
