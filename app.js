@@ -11,7 +11,7 @@ const ACCESS_TOKEN = process.env.ACCESS_TOKEN;
 const PHONE_NUMBER_ID = process.env.PHONE_NUMBER_ID;
 
 // 1) VERIFY WEBHOOK (GET)
-app.get("/", (req, res) => {
+app.get("/webhook", (req, res) => {
   const mode = req.query["hub.mode"];
   const token = req.query["hub.verify_token"];
   const challenge = req.query["hub.challenge"];
@@ -21,11 +21,12 @@ app.get("/", (req, res) => {
     return res.status(200).send(challenge);
   }
 
+  console.log("Webhook verification failed!");
   return res.sendStatus(403);
 });
 
 // 2) RECEIVE MESSAGES (POST)
-app.post("/", async (req, res) => {
+app.post("/webhook", async (req, res) => {
   console.log("📩 Webhook received:");
   console.log(JSON.stringify(req.body, null, 2));
 
@@ -43,7 +44,7 @@ app.post("/", async (req, res) => {
 
       // SEND A REPLY BACK VIA CLOUD API
       await fetch(
-        `https://graph.facebook.com/v20.0/${PHONE_NUMBER_ID}/messages`,
+        `https://graph.facebook.com/v22.0/${PHONE_NUMBER_ID}/messages`,
         {
           method: "POST",
           headers: {
@@ -66,6 +67,11 @@ app.post("/", async (req, res) => {
   }
 
   res.sendStatus(200);
+});
+
+// 3) ROOT ENDPOINT (just to check server status)
+app.get("/", (req, res) => {
+  res.send("Webhook server is running!");
 });
 
 // START SERVER
