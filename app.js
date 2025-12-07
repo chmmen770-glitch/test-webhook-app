@@ -1,6 +1,8 @@
 // Import Express
 const express = require("express");
-const fetch = require("node-fetch");
+
+// Node-fetch workaround for CommonJS
+const fetch = (...args) => import("node-fetch").then(({ default: fetch }) => fetch(...args));
 
 const app = express();
 app.use(express.json());
