@@ -1,43 +1,37 @@
-// Import Express.js
-const express = require('express');
-const app = express();
+import express from "express";
 
-// Middleware to parse JSON bodies
+const app = express();
 app.use(express.json());
 
-// Middleware to log all incoming requests
-app.use((req, res, next) => {
-  console.log(`\nIncoming ${req.method} request to ${req.url}`);
-  console.log('Headers:', JSON.stringify(req.headers, null, 2));
-  next();
-});
+const VERIFY_TOKEN = process.env.VERIFY_TOKEN || "mysecrettoken";
 
-// Set port and verify token
-const port = process.env.PORT || 3000;
-const verifyToken = process.env.VERIFY_TOKEN;
+// ---------- GET /webhook  (Verification) ----------
+app.get("/webhook", (req, res) => {
+  const mode = req.query["hub.mode"];
+  const token = req.query["hub.verify_token"];
+  const challenge = req.query["hub.challenge"];
 
-// Route for GET requests (Webhook verification)
-app.get('/', (req, res) => {
-  const { 'hub.mode': mode, 'hub.challenge': challenge, 'hub.verify_token': token } = req.query;
-  if (mode === 'subscribe' && token === verifyToken) {
-    console.log('WEBHOOK VERIFIED');
-    res.status(200).send(challenge);
-  } else {
-    console.log('Webhook verification failed');
-    res.status(403).end();
+  console.log("Meta GET verification received:", req.query);
+
+  if (mode === "subscribe" && token === VERIFY_TOKEN) {
+    console.log("Webhook verified successfully!");
+    return res.status(200).send(challenge);
   }
+
+  console.log("Webhook verification failed!");
+  return res.sendStatus(403);
 });
 
-// Route for POST requests (Webhook payloads)
-app.post('/', (req, res) => {
-  const timestamp = new Date().toISOString().replace('T', ' ').slice(0, 19);
-  console.log(`\nWebhook received at ${timestamp}`);
-  console.log('Headers:', JSON.stringify(req.headers, null, 2));
-  console.log('Body:', JSON.stringify(req.body, null, 2));
-  res.status(200).end();
+// ---------- POST /webhook  (Messages from WhatsApp) ----------
+app.post("/webhook", (req, res) => {
+  console.log("Incoming webhook POST:", JSON.stringify(req.body, null, 2));
+  res.sendStatus(200);
 });
 
-// Start the server
-app.listen(port, () => {
-  console.log(`\nListening on port ${port}\n`);
+// Root endpoint just to show it's alive
+app.get("/", (req, res) => {
+  res.send("Webhook server is running!");
 });
+
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
